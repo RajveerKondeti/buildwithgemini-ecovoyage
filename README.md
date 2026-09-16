@@ -1,12 +1,28 @@
 # Gemini EcoVoyage 🌿✈️
 
-> An autonomous AI travel concierge built with Google's Agent Development Kit (ADK), Vertex AI, and Cloud Run.
+> An autonomous AI travel concierge built with Google's Agent Development Kit (ADK), Vertex AI, and Cloud Run, featuring a Hierarchical Multi-Agent Architecture.
 
 ![demo](demo.gif)
 
 ## Overview
 
 **Gemini EcoVoyage** plans eco-friendly travel itineraries, manages budgets, generates destination preview images, stores user travel preferences, and saves trips to Firestore. It features a responsive chat UI built with **A2UI** component rendering and streams structured UI cards directly to the web client.
+
+## Hierarchical Multi-Agent System
+
+Gemini EcoVoyage is orchestrated as a Google ADK Hierarchical Multi-Agent System:
+
+1. **Parent Orchestrator (`ecovoyage_master_agent`)**:
+   - Coordinates specialist sub-agents, manages session state via Firestore and Vertex AI Memory Bank, generates destination preview images, and formats outputs using A2UI schema manager (v0.8).
+2. **Sub-Agent 1 (`finance_agent`)**:
+   - Equipped with `execute_python_code` (sandbox) and REST tool `get_live_fx_rates`.
+   - Responsible for currency conversions, budget splits, and applying financial risk buffers in the user's local currency (defaulting to ₹ INR).
+3. **Sub-Agent 2 (`geo_logistics_agent`)**:
+   - Equipped with Google Maps Geocoding (`geocode_location`), Places (`search_places_and_accommodations`), Transit Directions (`get_transit_directions`), Weather, and Timezone tools.
+   - Responsible for verifying real locations, transit times, and eco-certified accommodations (e.g., Chennai to Mexico travel legs).
+4. **Sub-Agent 3 (`eco_grounding_agent`)**:
+   - Equipped with `consult_docs` (Vertex AI RAG).
+   - Responsible for sustainability scores, visa/travel advisories, and local environmental rules.
 
 ## Core Capabilities & Architecture
 

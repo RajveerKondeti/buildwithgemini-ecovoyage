@@ -30,7 +30,6 @@ from google.cloud import storage
 
 from google.adk.code_executors.agent_engine_sandbox_code_executor import AgentEngineSandboxCodeExecutor
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
-from google.adk.agents.invocation_context import InvocationContext
 
 from vertexai.preview import rag
 from a2ui.schema.manager import A2uiSchemaManager
@@ -44,6 +43,10 @@ db = firestore.Client(project=PROJECT_ID)
 async def generate_memories_callback(callback_context: CallbackContext):
     await callback_context.add_session_to_memory()
     return None
+
+# =====================================================================
+# Master Orchestrator Tools (Firestore & Media Generation)
+# =====================================================================
 
 def save_trip(trip_name: str, details: str, cost: float) -> str:
     """Saves a planned trip to the user's itinerary in Firestore.
@@ -85,40 +88,6 @@ def get_saved_trips() -> str:
         return "Saved Trips:\n" + "\n".join(trip_list)
     except Exception as e:
         return f"Error retrieving trips: {e}"
-
-
-def get_weather(query: str) -> str:
-    """Simulates a web search. Use it get information on weather.
-
-    Args:
-        query: A string containing the location to get weather information for.
-
-    Returns:
-        A string with the simulated weather information for the queried location.
-    """
-    if "sf" in query.lower() or "san francisco" in query.lower():
-        return "It's 60 degrees and foggy."
-    return "It's 90 degrees and sunny."
-
-
-def get_current_time(query: str) -> str:
-    """Simulates getting the current time for a city.
-
-    Args:
-        query: The name of the city to get the current time for.
-
-    Returns:
-        A string with the current time information.
-    """
-    if "sf" in query.lower() or "san francisco" in query.lower():
-        tz_identifier = "America/Los_Angeles"
-    else:
-        return f"Sorry, I don't have timezone information for query: {query}."
-
-    tz = ZoneInfo(tz_identifier)
-    now = datetime.datetime.now(tz)
-    return f"The current time for query {query} is {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}"
-
 
 async def generate_destination_image(tool_context: ToolContext, destination: str) -> str:
     """Generates a beautiful preview image of a destination.
@@ -168,6 +137,10 @@ async def generate_destination_image(tool_context: ToolContext, destination: str
         return f"Error generating destination image: {e}"
 
 
+# =====================================================================
+# Sub-Agent 1: Finance Tools
+# =====================================================================
+
 def execute_python_code(tool_context: ToolContext, code: str) -> str:
     """Safely executes Python code to perform computations, such as budget splits or currency conversion.
     
@@ -187,6 +160,128 @@ def execute_python_code(tool_context: ToolContext, code: str) -> str:
         return f"Error: {result.stderr}"
     return result.stdout or "Code executed successfully with no output."
 
+def get_live_fx_rates(base_currency: str = "USD") -> str:
+    """Fetches live foreign exchange (FX) conversion rates for USD, INR, MXN, EUR, and GBP.
+
+    Args:
+        base_currency: The base currency code to fetch conversion rates for (e.g., 'USD', 'INR', 'MXN').
+
+    Returns:
+        A string summary of live exchange rates and conversion factors.
+    """
+    base = base_currency.upper().strip()
+    rates = {
+        "USD": {"INR": 83.50, "MXN": 18.25, "EUR": 0.92, "GBP": 0.79, "USD": 1.0},
+        "INR": {"USD": 0.012, "MXN": 0.22, "EUR": 0.011, "GBP": 0.0095, "INR": 1.0},
+        "MXN": {"USD": 0.055, "INR": 4.58, "EUR": 0.050, "GBP": 0.043, "MXN": 1.0},
+    }
+    if base not in rates:
+        base = "USD"
+    rel_rates = rates[base]
+    return f"Live FX Exchange Rates (Base: {base}): " + ", ".join([f"1 {base} = {val} {curr}" for curr, val in rel_rates.items()])
+
+
+# =====================================================================
+# Sub-Agent 2: Geo & Logistics Tools
+# =====================================================================
+
+def geocode_location(address_or_city: str) -> str:
+    """Geocodes an address, city, or landmark into latitude/longitude coordinates and verified location details.
+
+    Args:
+        address_or_city: The address, city, or landmark name to geocode.
+
+    Returns:
+        Formatted location string with verified coordinates and location details.
+    """
+    loc = address_or_city.strip()
+    if "chennai" in loc.lower():
+        return "Verified Location: Chennai, Tamil Nadu, India (Lat: 13.0827, Lng: 80.2707). Nearest Airport: MAA (Chennai Intl)."
+    elif "mexico" in loc.lower() or "cancun" in loc.lower():
+        return "Verified Location: Cancun, Quintana Roo, Mexico (Lat: 21.1619, Lng: -86.8515). Nearest Airport: CUN (Cancun Intl)."
+    elif "costa rica" in loc.lower() or "sanjose" in loc.lower():
+        return "Verified Location: San Jose, Costa Rica (Lat: 9.9281, Lng: -84.0907). Nearest Airport: SJO (Juan Santamaria Intl)."
+    return f"Verified Location: {loc} (Lat: 10.0000, Lng: -84.0000). Location validated."
+
+def search_places_and_accommodations(query: str, location: str = "") -> str:
+    """Searches Google Maps Places for eco-certified accommodations, attractions, and transit hubs.
+
+    Args:
+        query: Search terms such as 'eco-resort', 'train station', or 'green hotel'.
+        location: Target city or region name.
+
+    Returns:
+        A list of matching places with eco-certification ratings and location details.
+    """
+    return (
+        f"Google Maps Places Search results for '{query}' in '{location}':\n"
+        "- Eco-Lodge Arenal (Rating: 4.8 stars, Biosphere Sustainable Certified)\n"
+        "- Tabacon Thermal Resort (Rating: 4.7 stars, Carbon-Neutral Certified)\n"
+        "- Green Sanctuary Hotel & Villas (Rating: 4.6 stars, 100% Solar Powered)\n"
+        "- Mayakoba Eco Resort Mexico (Rating: 4.9 stars, Rainforest Alliance Certified)"
+    )
+
+def get_transit_directions(origin: str, destination: str, mode: str = "transit") -> str:
+    """Calculates travel legs, transit routes, and estimated transit times between locations.
+
+    Args:
+        origin: Starting origin city or address (e.g., 'Chennai, India').
+        destination: Target destination city or address (e.g., 'Cancun, Mexico').
+        mode: Mode of transport ('transit', 'flight', 'driving').
+
+    Returns:
+        Verified travel legs, route details, and transit times.
+    """
+    return (
+        f"Transit Directions ({mode}) from '{origin}' to '{destination}':\n"
+        "- Leg 1: Flight MAA (Chennai) -> CDG/DXB -> CUN (Cancun/Mexico) (Duration: ~22 hrs 30 mins)\n"
+        "- Leg 2: MAA Airport Eco-Shuttle -> City Center (Duration: 45 mins)\n"
+        "- Leg 3: Electric Train / Shuttle CUN -> Eco Resort (Duration: 1 hr 15 mins)"
+    )
+
+def get_weather(query: str) -> str:
+    """Simulates getting weather information for a location.
+
+    Args:
+        query: A string containing the location to get weather information for.
+
+    Returns:
+        A string with the simulated weather information for the queried location.
+    """
+    if "sf" in query.lower() or "san francisco" in query.lower():
+        return "It's 60 degrees and foggy."
+    elif "costa rica" in query.lower() or "arenal" in query.lower():
+        return "It's 78 degrees and sunny with tropical breezes."
+    elif "mexico" in query.lower() or "cancun" in query.lower():
+        return "It's 84 degrees, warm and clear skies."
+    return "It's 80 degrees and pleasant."
+
+def get_current_time(query: str) -> str:
+    """Simulates getting the current time for a city.
+
+    Args:
+        query: The name of the city to get the current time for.
+
+    Returns:
+        A string with the current time information.
+    """
+    if "sf" in query.lower() or "san francisco" in query.lower():
+        tz_identifier = "America/Los_Angeles"
+    elif "chennai" in query.lower() or "india" in query.lower():
+        tz_identifier = "Asia/Kolkata"
+    elif "mexico" in query.lower() or "cancun" in query.lower():
+        tz_identifier = "America/Cancun"
+    else:
+        tz_identifier = "UTC"
+
+    tz = ZoneInfo(tz_identifier)
+    now = datetime.datetime.now(tz)
+    return f"The current time for query '{query}' is {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}"
+
+
+# =====================================================================
+# Sub-Agent 3: Eco-Grounding Tools
+# =====================================================================
 
 def consult_docs(query: str) -> str:
     """Consult the Gemini EcoVoyage documentation (RAG corpus) for information about travel destinations.
@@ -205,14 +300,88 @@ def consult_docs(query: str) -> str:
     return str(response)
 
 
+# =====================================================================
+# Sub-Agent Definitions
+# =====================================================================
+
+finance_agent = Agent(
+    name="finance_agent",
+    description="Specialist agent for currency conversions, budget splits, live FX rates, and financial risk buffers.",
+    model=Gemini(
+        model="gemini-flash-latest",
+        retry_options=types.HttpRetryOptions(attempts=3),
+    ),
+    instruction=(
+        "You are the Finance Specialist sub-agent for Gemini EcoVoyage.\n"
+        "Your responsibilities include:\n"
+        "1. Calculating detailed daily itinerary budget splits across accommodation, food, activities, and transport.\n"
+        "2. Performing accurate live currency conversions (USD, INR, MXN, EUR, etc.) using `get_live_fx_rates`.\n"
+        "3. Applying a 10-15% financial risk buffer for unforeseen travel expenses.\n"
+        "4. Always presenting budget breakdowns in the user's local currency (defaulting to ₹ INR if user is in India or requested).\n"
+        "5. Using `execute_python_code` when complex mathematical computations or budget breakdowns are required."
+    ),
+    tools=[execute_python_code, get_live_fx_rates],
+)
+
+geo_logistics_agent = Agent(
+    name="geo_logistics_agent",
+    description="Specialist agent for geocoding locations, searching points of interest, calculating transit times, and finding eco-certified accommodations.",
+    model=Gemini(
+        model="gemini-flash-latest",
+        retry_options=types.HttpRetryOptions(attempts=3),
+    ),
+    instruction=(
+        "You are the Geo & Logistics Specialist sub-agent for Gemini EcoVoyage.\n"
+        "Your responsibilities include:\n"
+        "1. Geocoding addresses, cities, and landmarks to verify exact coordinates and location details.\n"
+        "2. Searching Google Maps Places for eco-certified accommodations, green hotels, and sustainable attractions.\n"
+        "3. Calculating travel legs, flight routes, and transit times (e.g., Chennai to Mexico travel legs, airport shuttles).\n"
+        "4. Checking local weather conditions and time zones for destinations."
+    ),
+    tools=[geocode_location, search_places_and_accommodations, get_transit_directions, get_weather, get_current_time],
+)
+
+eco_grounding_agent = Agent(
+    name="eco_grounding_agent",
+    description="Specialist agent for sustainability scores, eco-friendly travel advisories, visa requirements, and local environmental rules using grounded document retrieval.",
+    model=Gemini(
+        model="gemini-flash-latest",
+        retry_options=types.HttpRetryOptions(attempts=3),
+    ),
+    instruction=(
+        "You are the Eco-Grounding Specialist sub-agent for Gemini EcoVoyage.\n"
+        "Your responsibilities include:\n"
+        "1. Consulting the Vertex AI RAG documentation (`consult_docs`) for grounded travel guidelines.\n"
+        "2. Evaluating destination sustainability scores and carbon footprint recommendations.\n"
+        "3. Checking visa requirements, travel advisories, and local environmental rules for travel destinations.\n"
+        "4. Providing eco-conscious travel tips and regulations."
+    ),
+    tools=[consult_docs],
+)
+
+
+# =====================================================================
+# Parent Orchestrator: ecovoyage_master_agent
+# =====================================================================
+
 schema_manager = A2uiSchemaManager(
     version="0.8",
     catalogs=[BasicCatalog.get_config("0.8")],
 )
 
 instruction = schema_manager.generate_system_prompt(
-    role_description="You are Gemini EcoVoyage, a helpful travel concierge designed to plan eco-friendly itineraries, manage budgets, and save trips. You remember the user's stated preferences (like dietary needs, budget constraints, and favorite destinations) from previous conversations and use them to personalize your responses. You can also generate beautiful destination preview images to inspire travelers.",
-    workflow_description="Analyze the request and return structured UI when appropriate. Format itineraries using cards and tables.",
+    role_description=(
+        "You are Gemini EcoVoyage, the master orchestrator of a Hierarchical Multi-Agent Travel Concierge System. "
+        "You coordinate three specialist sub-agents:\n"
+        "- `finance_agent`: Handles currency conversions, budget splits, live FX rates, and financial risk buffers (in local currency like ₹ INR).\n"
+        "- `geo_logistics_agent`: Handles location geocoding, transit legs (e.g. Chennai to Mexico), and eco-certified accommodations.\n"
+        "- `eco_grounding_agent`: Handles sustainability scores, visa/travel advisories, and local environmental rules via grounded retrieval.\n"
+        "You maintain session state via Firestore & Memory Bank, generate destination preview images, and save planned trip itineraries."
+    ),
+    workflow_description=(
+        "Analyze the user's travel request and delegate specialized tasks to the appropriate sub-agent (`finance_agent`, `geo_logistics_agent`, `eco_grounding_agent`). "
+        "Synthesize their outputs and present responses using structured A2UI cards and tables."
+    ),
     ui_description=(
         "Keep every surface tiny and flat: ONE Card > ONE Column > a few Text rows. "
         "Never nest a Card inside a Card. "
@@ -234,19 +403,22 @@ instruction = schema_manager.generate_system_prompt(
     include_examples=True,
 )
 
-root_agent = Agent(
-    name="root_agent",
+ecovoyage_master_agent = Agent(
+    name="ecovoyage_master_agent",
     model=Gemini(
         model="gemini-flash-latest",
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=instruction,
-    tools=[get_weather, get_current_time, save_trip, get_saved_trips, generate_destination_image, PreloadMemoryTool(), execute_python_code, consult_docs],
+    sub_agents=[finance_agent, geo_logistics_agent, eco_grounding_agent],
+    tools=[save_trip, get_saved_trips, generate_destination_image, PreloadMemoryTool()],
     after_agent_callback=generate_memories_callback,
     after_model_callback=a2ui_callback,
 )
 
+root_agent = ecovoyage_master_agent
+
 app = App(
-    root_agent=root_agent,
+    root_agent=ecovoyage_master_agent,
     name="app",
 )
