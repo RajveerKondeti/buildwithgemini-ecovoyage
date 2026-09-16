@@ -44,7 +44,10 @@ PROJECT_ID = "qwiklabs-gcp-01-ee290fd2683c"
 db = firestore.Client(project=PROJECT_ID)
 
 async def generate_memories_callback(callback_context: CallbackContext):
-    await callback_context.add_session_to_memory()
+    try:
+        await callback_context.add_session_to_memory()
+    except Exception as e:
+        print(f"Memory bank callback notice: {e}")
     return None
 
 # =====================================================================
