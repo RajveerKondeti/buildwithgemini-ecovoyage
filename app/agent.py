@@ -392,7 +392,7 @@ finance_agent = Agent(
     name="finance_agent",
     description="Specialist agent for currency conversions, budget splits, live FX exchange rates, and financial risk buffers.",
     model=Gemini(
-        model="gemini-flash-latest",
+        model="gemini-2.5-flash",
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=(
@@ -410,7 +410,7 @@ geo_logistics_agent = Agent(
     name="geo_logistics_agent",
     description="Specialist agent for geocoding locations, real-time weather, searching points of interest, transit times, and finding eco-certified accommodations.",
     model=Gemini(
-        model="gemini-flash-latest",
+        model="gemini-2.5-flash",
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=(
@@ -428,7 +428,7 @@ eco_grounding_agent = Agent(
     name="eco_grounding_agent",
     description="Specialist agent for sustainability scores, eco-friendly travel advisories, visa requirements, and local environmental rules using grounded document retrieval.",
     model=Gemini(
-        model="gemini-flash-latest",
+        model="gemini-2.5-flash",
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=(
@@ -482,10 +482,10 @@ instruction = schema_manager.generate_system_prompt(
         '{"Image": {"url": {"literalString": "https://..."}}}. Never point an '
         "Image at a bare filename, an artifact name, or a non-http(s) path. If you do "
         "not have a public URL, add a short Text line noting the image instead. "
-        "No markdown in text; use the usageHint property ('h1', 'h2', 'body') for "
+        "No markdown in text; use the usageHint property (\'h1\', \'h2\', \'body\') for "
         "headings and emphasis. "
         "Output ONLY the raw A2UI JSON array — no prose, and never wrap it in "
-        "<a2a_datapart_json> tags or 'kind'/'data'/'metadata' objects."
+        "<a2a_datapart_json> tags or \'kind\'/\'data\'/\'metadata\' objects."
     ),
     include_schema=True,
     include_examples=True,
@@ -494,7 +494,7 @@ instruction = schema_manager.generate_system_prompt(
 ecovoyage_master_agent = Agent(
     name="ecovoyage_master_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model="gemini-2.5-flash",
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=instruction,
