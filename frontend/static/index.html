@@ -3,73 +3,801 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent</title>
-<!-- Optional: used only to draw A2UI Icon components. If it can't load (offline/
-     corp network), icons fall back to showing their name as text. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">
+<title>Gemini EcoVoyage // Neural Concierge Dashboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap">
 <style>
-  :root { --accent:#1a73e8; --bg:#f6f8fa; --border:#dfe3e8; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:system-ui,sans-serif; background:var(--bg); display:flex; flex-direction:column; height:100vh; }
-  header { background:var(--accent); color:#fff; padding:.9rem 1.2rem; font-weight:700; }
-  #log { flex:1; overflow-y:auto; padding:1.2rem; max-width:780px; width:100%; margin:0 auto; }
-  .msg { margin:.6rem 0; }
-  .msg.user { text-align:right; }
-  .bubble { display:inline-block; padding:.6rem .9rem; border-radius:12px; background:#fff; border:1px solid var(--border); text-align:left; max-width:90%; white-space:pre-wrap; }
-  .msg.user .bubble { background:var(--accent); color:#fff; border:none; }
-  /* When the reply is an A2UI card, drop the bubble chrome so the card stands alone. */
-  .bubble.rich { background:transparent; border:none; padding:0; max-width:100%; white-space:normal; }
-  form { display:flex; gap:.5rem; padding:1rem; border-top:1px solid var(--border); background:#fff; }
-  input { flex:1; padding:.7rem; border:1px solid var(--border); border-radius:8px; font-size:1rem; }
-  button { padding:.7rem 1.1rem; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
+  :root {
+    --bg-obsidian: #030712;
+    --card-glass: rgba(15, 23, 42, 0.65);
+    --card-glass-hover: rgba(30, 41, 59, 0.75);
+    --border-glass: rgba(255, 255, 255, 0.09);
+    --border-glow: rgba(0, 242, 254, 0.3);
+    --cyan-glow: #00f2fe;
+    --cyan-dark: #00838f;
+    --emerald-glow: #10b981;
+    --emerald-dark: #064e3b;
+    --purple-glow: #a855f7;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+  }
 
-  /* --- A2UI component styles (Card, Column, Row, Text, Divider, List, Image, Icon) --- */
-  .a2card { border:1px solid var(--border); border-radius:12px; padding:1rem; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.06); max-width:100%; }
-  .a2card + .a2card, .a2col > .a2card { margin-top:.6rem; }
-  .a2col { display:flex; flex-direction:column; gap:.4rem; }
-  .a2row { display:flex; flex-direction:row; gap:.6rem; align-items:center; flex-wrap:wrap; }
-  .a2row.between { justify-content:space-between; }
-  .a2text { margin:0; line-height:1.4; }
-  .a2text.a2-h1 { font-size:1.5rem; font-weight:700; }
-  .a2text.a2-h2 { font-size:1.25rem; font-weight:700; }
-  .a2text.a2-h3 { font-size:1.1rem; font-weight:600; }
-  .a2text.a2-h4 { font-size:1rem; font-weight:600; }
-  .a2text.a2-caption { font-size:.85rem; color:#666; }
-  .a2divider { border:none; border-top:1px solid var(--border); margin:.4rem 0; width:100%; }
-  .a2img { max-width:100%; border-radius:8px; display:block; }
-  .material-symbols-outlined { font-family:'Material Symbols Outlined'; font-size:1.25rem; line-height:1; vertical-align:middle; color:var(--accent); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--bg-obsidian);
+    color: var(--text-main);
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* --- Ambient Cyberpunk Radial Backlights & SVG Grid --- */
+  .ambient-bg {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: 
+      radial-gradient(circle at 15% 15%, rgba(0, 242, 254, 0.12), transparent 45%),
+      radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.12), transparent 45%),
+      radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.06), transparent 60%);
+  }
+
+  .grid-pattern {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.15;
+    background-image: 
+      linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* --- Neural Telemetry HUD Header --- */
+  header {
+    position: relative;
+    z-index: 10;
+    background: rgba(3, 7, 18, 0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-glass);
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .brand-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--cyan-glow), var(--emerald-glow));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.4);
+  }
+
+  .brand-icon span {
+    color: #000;
+    font-size: 22px;
+    font-weight: bold;
+  }
+
+  .brand-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    background: linear-gradient(90deg, var(--text-main), var(--cyan-glow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .brand-subtitle {
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--cyan-glow);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Telemetry Status Bar */
+  .telemetry-hud {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .agent-badge {
+    background: var(--card-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: 20px;
+    padding: 0.35rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.3s ease;
+  }
+
+  .agent-badge:hover {
+    border-color: var(--border-glow);
+    box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--emerald-glow);
+    box-shadow: 0 0 8px var(--emerald-glow);
+    animation: pulse-glow 2s infinite;
+  }
+
+  .status-dot.active {
+    background: var(--cyan-glow);
+    box-shadow: 0 0 12px var(--cyan-glow);
+    animation: pulse-fast 0.8s infinite alternate;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.6; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+
+  @keyframes pulse-fast {
+    from { opacity: 0.4; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1.2); }
+  }
+
+  /* --- Main Layout Grid --- */
+  main {
+    position: relative;
+    z-index: 10;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    max-width: 1600px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 1024px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  /* Glass Panel Wrapper */
+  .glass-panel {
+    background: var(--card-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    transition: border-color 0.3s ease;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--cyan-glow);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-glass);
+    padding-bottom: 0.75rem;
+  }
+
+  /* --- Flight & Budget Control Dock --- */
+  .dock-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .input-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .glass-input {
+    background: rgba(3, 7, 18, 0.6);
+    border: 1px solid var(--border-glass);
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    transition: all 0.3s ease;
+  }
+
+  .glass-input:focus {
+    border-color: var(--cyan-glow);
+    box-shadow: 0 0 12px rgba(0, 242, 254, 0.25);
+  }
+
+  /* Range Slider */
+  .budget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .budget-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--emerald-glow);
+  }
+
+  .glass-range {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+  }
+
+  .glass-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--cyan-glow);
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--cyan-glow);
+    transition: transform 0.2s ease;
+  }
+
+  .glass-range::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+
+  /* Currency Switcher Tabs */
+  .currency-tabs {
+    display: flex;
+    gap: 0.35rem;
+    background: rgba(3, 7, 18, 0.5);
+    padding: 0.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-glass);
+  }
+
+  .curr-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.4rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .curr-btn.active {
+    background: rgba(0, 242, 254, 0.15);
+    color: var(--cyan-glow);
+    border: 1px solid var(--border-glow);
+  }
+
+  /* Action Chips */
+  .chips-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .chip-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    border-radius: 10px;
+    padding: 0.6rem 0.85rem;
+    color: var(--text-main);
+    font-size: 0.8rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .chip-btn:hover {
+    background: rgba(0, 242, 254, 0.08);
+    border-color: var(--cyan-glow);
+    transform: translateX(4px);
+  }
+
+  /* Launch Button */
+  .launch-btn {
+    background: linear-gradient(135deg, var(--cyan-glow), #00c6ff);
+    color: #030712;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    padding: 0.85rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .launch-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px rgba(0, 242, 254, 0.5);
+  }
+
+  /* --- Chat & Telemetry Stream View --- */
+  .chat-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 600px;
+  }
+
+  .message-log {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-right: 0.5rem;
+    max-height: calc(100vh - 240px);
+  }
+
+  .message-log::-webkit-scrollbar {
+    width: 6px;
+  }
+  .message-log::-webkit-scrollbar-thumb {
+    background: var(--border-glass);
+    border-radius: 3px;
+  }
+
+  .chat-bubble {
+    max-width: 88%;
+    padding: 0.9rem 1.15rem;
+    border-radius: 14px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .chat-bubble.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(0, 131, 143, 0.3));
+    border: 1px solid var(--border-glow);
+    color: var(--text-main);
+    box-shadow: 0 4px 20px rgba(0, 242, 254, 0.15);
+  }
+
+  .chat-bubble.agent {
+    align-self: flex-start;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border-glass);
+    color: var(--text-main);
+  }
+
+  /* Thinking Indicator */
+  .thinking-indicator {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(0, 242, 254, 0.05);
+    border: 1px solid var(--border-glow);
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--cyan-glow);
+  }
+
+  .pulse-bars {
+    display: flex;
+    gap: 4px;
+  }
+  .pulse-bar {
+    width: 3px;
+    height: 14px;
+    background: var(--cyan-glow);
+    animation: pulse-bar 1s infinite ease-in-out;
+  }
+  .pulse-bar:nth-child(2) { animation-delay: 0.2s; }
+  .pulse-bar:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes pulse-bar {
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
+  }
+
+  /* Chat Input Bar */
+  .input-form {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    background: rgba(3, 7, 18, 0.7);
+    padding: 0.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-glass);
+  }
+
+  .chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 0.65rem 0.85rem;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.92rem;
+    outline: none;
+  }
+
+  .send-btn {
+    background: var(--cyan-glow);
+    color: #030712;
+    border: none;
+    border-radius: 8px;
+    padding: 0.65rem 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .send-btn:hover {
+    box-shadow: 0 0 12px var(--cyan-glow);
+  }
+
+  /* --- A2UI Component Styles (Custom Cyberpunk Glassmorphism) --- */
+  .a2card {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass);
+    border-radius: 14px;
+    padding: 1.1rem;
+    margin-top: 0.75rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+  }
+
+  .a2card:hover {
+    border-color: rgba(0, 242, 254, 0.25);
+    box-shadow: 0 8px 30px rgba(0, 242, 254, 0.1);
+  }
+
+  .a2col { display: flex; flex-direction: column; gap: 0.6rem; }
+  .a2row { display: flex; flex-direction: row; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+  .a2row.between { justify-content: space-between; }
+
+  .a2text { margin: 0; line-height: 1.5; color: var(--text-main); }
+  .a2text.a2-h1 { font-size: 1.35rem; font-weight: 700; color: var(--cyan-glow); }
+  .a2text.a2-h2 { font-size: 1.15rem; font-weight: 600; color: var(--emerald-glow); }
+  .a2text.a2-h3 { font-size: 1rem; font-weight: 600; }
+  .a2text.a2-caption { font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+
+  .a2divider {
+    border: none;
+    border-top: 1px solid var(--border-glass);
+    margin: 0.5rem 0;
+  }
+
+  .a2img-container {
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid var(--border-glass);
+    margin-top: 0.5rem;
+  }
+
+  .a2img {
+    width: 100%;
+    height: auto;
+    display: block;
+    transition: transform 0.5s ease;
+  }
+
+  .a2img-container:hover .a2img {
+    transform: scale(1.04);
+  }
+
+  /* Neon Financial Rows / Tables */
+  .neon-table-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(3, 7, 18, 0.5);
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    padding: 0.5rem 0.85rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+  }
+
+  .badge-curr {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--emerald-glow);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 6px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .badge-eco {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(0, 242, 254, 0.12);
+    color: var(--cyan-glow);
+    border: 1px solid var(--border-glow);
+    border-radius: 20px;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
 </style>
 </head>
 <body>
-<header>Your Agent</header>
-<div id="log"></div>
-<form id="form">
-  <input id="input" placeholder="Ask something…" autocomplete="off" autofocus>
-  <button>Send</button>
-</form>
+
+<div class="ambient-bg"></div>
+<div class="grid-pattern"></div>
+
+<!-- Neural Telemetry HUD -->
+<header>
+  <div class="brand-logo">
+    <div class="brand-icon">
+      <span>E</span>
+    </div>
+    <div>
+      <div class="brand-title">GEMINI ECOVOYAGE</div>
+      <div class="brand-subtitle">// HIERARCHICAL NEURAL CONCIERGE</div>
+    </div>
+  </div>
+
+  <div class="telemetry-hud">
+    <div class="agent-badge" id="agent-orchestrator">
+      <div class="status-dot"></div>
+      <span>Master Orchestrator</span>
+    </div>
+    <div class="agent-badge" id="agent-finance">
+      <div class="status-dot"></div>
+      <span>Finance Agent</span>
+    </div>
+    <div class="agent-badge" id="agent-geo">
+      <div class="status-dot"></div>
+      <span>Geo-Logistics</span>
+    </div>
+    <div class="agent-badge" id="agent-eco">
+      <div class="status-dot"></div>
+      <span>Eco-Grounding</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Control Dock Panel -->
+  <div class="glass-panel">
+    <div class="panel-header">
+      <span class="material-symbols-outlined" style="font-size: 18px;">flight_takeoff</span>
+      Flight & Budget Dock
+    </div>
+
+    <form class="dock-form" id="dock-form">
+      <div class="input-group">
+        <label class="input-label">ORIGIN LOCATION</label>
+        <input type="text" class="glass-input" id="origin-input" value="Chennai, India (MAA)">
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">DESTINATION</label>
+        <input type="text" class="glass-input" id="dest-input" value="Cancun, Mexico (CUN)">
+      </div>
+
+      <div class="input-group">
+        <div class="budget-header">
+          <label class="input-label">TRIP BUDGET RANGE</label>
+          <span class="budget-value" id="budget-val">₹ 2,00,000 INR</span>
+        </div>
+        <input type="range" class="glass-range" id="budget-range" min="50000" max="10000000" step="25000" value="200000">
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">DISPLAY CURRENCY</label>
+        <div class="currency-tabs">
+          <button type="button" class="curr-btn active" data-curr="INR">INR ₹</button>
+          <button type="button" class="curr-btn" data-curr="USD">USD $</button>
+          <button type="button" class="curr-btn" data-curr="MXN">MXN $</button>
+          <button type="button" class="curr-btn" data-curr="EUR">EUR €</button>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">QUICK LAUNCH CHIPS</label>
+        <div class="chips-container">
+          <button type="button" class="chip-btn" data-prompt="I am traveling from Chennai, India to Mexico for 7 days with a budget of 2,00,000 INR. Plan an eco-friendly trip, convert costs to MXN, check visa advisories, and generate a destination preview.">
+            <span>✈️</span> Chennai → Mexico 7-Day Luxury Eco-Trip
+          </button>
+          <button type="button" class="chip-btn" data-prompt="Calculate live FX budget conversion rates for INR to MXN with a 15% financial risk buffer for travel.">
+            <span>💰</span> Calculate FX Budget Split with Risk Buffer
+          </button>
+          <button type="button" class="chip-btn" data-prompt="Check Indian passport visa requirements, travel advisories, and eco-certified rules for Mexico.">
+            <span>🛂</span> Check Indian Passport Visa & Eco-Rules
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="launch-btn">
+        <span class="material-symbols-outlined">rocket_launch</span>
+        ENGAGE ECOVOYAGE AGENTS
+      </button>
+    </form>
+  </div>
+
+  <!-- Chat / Telemetry Log View -->
+  <div class="glass-panel chat-view">
+    <div class="panel-header">
+      <span class="material-symbols-outlined" style="font-size: 18px;">terminal</span>
+      Neural Telemetry Stream
+    </div>
+
+    <div class="message-log" id="log">
+      <!-- Initial Welcome Card -->
+      <div class="chat-bubble agent">
+        <div class="a2card">
+          <div class="a2col">
+            <div class="a2row between">
+              <div class="a2text a2-h1">Gemini EcoVoyage Concierge</div>
+              <div class="badge-eco">🌿 Multi-Agent Active</div>
+            </div>
+            <div class="a2text a2-caption">SYSTEM ONLINE // VERIFIED FIRESTORE & RAG ENGINE CONNECTED</div>
+            <hr class="a2divider">
+            <div class="a2text">
+              Welcome! Configure your flight origin, destination, and budget in the Dock or choose a quick-launch action to generate grounded itineraries, live FX conversions, and destination previews.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <form class="input-form" id="chat-form">
+      <input type="text" class="chat-input" id="chat-input" placeholder="Transmit neural query to EcoVoyage agents..." autocomplete="off">
+      <button type="submit" class="send-btn">SEND</button>
+    </form>
+  </div>
+</main>
 
 <script>
 const log = document.getElementById("log");
-const form = document.getElementById("form");
-const input = document.getElementById("input");
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+const dockForm = document.getElementById("dock-form");
+const originInput = document.getElementById("origin-input");
+const destInput = document.getElementById("dest-input");
+const budgetRange = document.getElementById("budget-range");
+const budgetVal = document.getElementById("budget-val");
+let selectedCurr = "INR";
 
-function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+// Format numbers into human-readable currency
+function formatCurrency(val, curr) {
+  const num = Number(val) || 0;
+  if (curr === "INR") return "₹ " + num.toLocaleString("en-IN") + " INR";
+  if (curr === "USD") return "$ " + Math.round(num / 83).toLocaleString("en-US") + " USD";
+  if (curr === "MXN") return "$ " + Math.round(num / 4.8).toLocaleString("en-US") + " MXN";
+  if (curr === "EUR") return "€ " + Math.round(num / 90).toLocaleString("en-EU") + " EUR";
+  return num.toLocaleString() + " " + curr;
+}
 
-function bubble(who) {
-  const m = el("div", "msg " + who);
-  const b = el("div", "bubble");
-  m.appendChild(b); log.appendChild(m); log.scrollTop = log.scrollHeight;
+// Update Budget Range Slider Counter
+budgetRange.addEventListener("input", () => {
+  budgetVal.textContent = formatCurrency(budgetRange.value, selectedCurr);
+});
+
+// Currency Switcher
+document.querySelectorAll(".curr-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".curr-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedCurr = btn.dataset.curr;
+    budgetVal.textContent = formatCurrency(budgetRange.value, selectedCurr);
+  });
+});
+
+// Quick-Launch Chips
+document.querySelectorAll(".chip-btn").forEach(chip => {
+  chip.addEventListener("click", () => {
+    const prompt = chip.dataset.prompt;
+    chatInput.value = prompt;
+    submitQuery(prompt);
+  });
+});
+
+// Create DOM element
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// Add chat bubble
+function appendBubble(who) {
+  const b = el("div", "chat-bubble " + who);
+  log.appendChild(b);
+  log.scrollTop = log.scrollHeight;
   return b;
 }
 
-/* ----------------------------------------------------------------------------
- * A2UI mini-renderer (v0.8 Basic Catalog subset).
- * Renders Card / Column / Row / Text / Divider / List / Image / Icon.
- * Anything else falls back to plain text (see renderReply). All text goes in via
- * textContent and image URLs are validated, so agent output can't inject HTML.
- * -------------------------------------------------------------------------- */
+// Show thinking indicator
+function showThinking() {
+  const t = el("div", "thinking-indicator");
+  t.id = "active-thinking";
+  t.innerHTML = `
+    <div class="pulse-bars">
+      <div class="pulse-bar"></div>
+      <div class="pulse-bar"></div>
+      <div class="pulse-bar"></div>
+    </div>
+    <span>Master Orchestrator invoking sub-agents...</span>
+  `;
+  log.appendChild(t);
+  log.scrollTop = log.scrollHeight;
+  
+  // Set active badge pulse
+  document.querySelectorAll(".status-dot").forEach(dot => dot.classList.add("active"));
+}
 
-// A "bound value" is usually {literalString: "..."}; we only support literals.
+function hideThinking() {
+  const t = document.getElementById("active-thinking");
+  if (t) t.remove();
+  document.querySelectorAll(".status-dot").forEach(dot => dot.classList.remove("active"));
+}
+
+/* ----------------------------------------------------------------------------
+ * A2UI v0.8 Renderer for Glassmorphic Dashboard
+ * -------------------------------------------------------------------------- */
 function boundStr(v) {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -77,20 +805,18 @@ function boundStr(v) {
   return "";
 }
 
-// child ids of a component's props: single `child` and/or `children.explicitList`.
 function childIds(props) {
   const ids = [];
   if (props && typeof props.child === "string") ids.push(props.child);
   const ch = props && props.children;
-  if (ch && Array.isArray(ch.explicitList)) for (const c of ch.explicitList) if (typeof c === "string") ids.push(c);
+  if (ch && Array.isArray(ch.explicitList)) {
+    for (const c of ch.explicitList) if (typeof c === "string") ids.push(c);
+  }
   return ids;
 }
 
-// A2UI icon names are camelCase (locationOn); Material Symbols wants snake_case.
-function iconName(n) { return String(n || "").replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/\s+/g, "_").toLowerCase(); }
-
 function buildNode(id, comps, seen) {
-  if (!id || seen.has(id)) return null;   // missing / cycle guard
+  if (!id || seen.has(id)) return null;
   seen.add(id);
   const spec = comps[id];
   if (!spec || typeof spec !== "object") return null;
@@ -100,109 +826,168 @@ function buildNode(id, comps, seen) {
 
   switch (type) {
     case "Card": {
-      const d = el("div", "a2card"); kids().forEach(n => d.appendChild(n)); return d;
+      const d = el("div", "a2card");
+      kids().forEach(n => d.appendChild(n));
+      return d;
     }
     case "Column":
     case "List": {
       const horizontal = type === "List" && props.direction === "horizontal";
-      const d = el("div", horizontal ? "a2row" : "a2col"); kids().forEach(n => d.appendChild(n)); return d;
+      const d = el("div", horizontal ? "a2row" : "a2col");
+      kids().forEach(n => d.appendChild(n));
+      return d;
     }
     case "Row": {
       const d = el("div", "a2row" + (props.distribution === "spaceBetween" ? " between" : ""));
-      kids().forEach(n => d.appendChild(n)); return d;
+      kids().forEach(n => d.appendChild(n));
+      return d;
     }
     case "Text": {
-      const t = el("div", "a2text");
+      const txt = boundStr(props.text);
       const hint = String(props.usageHint || "body").toLowerCase();
-      if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(hint)) t.classList.add("a2-" + hint);
+      const t = el("div", "a2text");
+      if (["h1", "h2", "h3", "h4"].includes(hint)) t.classList.add("a2-" + hint);
       else if (hint === "caption") t.classList.add("a2-caption");
-      t.textContent = boundStr(props.text);
+      
+      // Styling enhancements for currency & eco badges
+      if (txt.includes("₹") || txt.includes("MXN") || txt.includes("USD") || txt.includes("EUR")) {
+        t.innerHTML = `<div class="neon-table-row"><span>${txt}</span></div>`;
+      } else if (txt.toLowerCase().includes("eco") || txt.toLowerCase().includes("sustainability")) {
+        t.innerHTML = `<span class="badge-eco">🌿 ${txt}</span>`;
+      } else {
+        t.textContent = txt;
+      }
       return t;
     }
     case "Divider":
       return el("hr", "a2divider");
     case "Image": {
       const src = boundStr(props.url || props.src);
-      if (!/^https?:\/\//i.test(src)) return null;   // only allow safe URLs
-      const img = el("img", "a2img"); img.src = src; img.alt = boundStr(props.alt) || ""; return img;
+      if (!/^https?:\/\//i.test(src)) return null;
+      const container = el("div", "a2img-container");
+      const img = el("img", "a2img");
+      img.src = src;
+      img.alt = boundStr(props.alt) || "Destination Preview";
+      container.appendChild(img);
+      return container;
     }
     case "Icon": {
-      const s = el("span", "material-symbols-outlined"); s.textContent = iconName(boundStr(props.name) || props.name); return s;
+      const s = el("span", "material-symbols-outlined");
+      s.textContent = boundStr(props.name) || "stars";
+      return s;
     }
     default:
-      return null;   // unknown component -> skipped (text fallback covers content)
+      return null;
   }
 }
 
-// Render one or more A2UI messages (beginRendering + surfaceUpdate) into `container`.
-// Returns true if anything was drawn.
 function renderSurface(messages, container) {
   const comps = {};
   const roots = [];
   for (const m of messages) {
     if (m.beginRendering && typeof m.beginRendering.root === "string") roots.push(m.beginRendering.root);
     const su = m.surfaceUpdate;
-    if (su && Array.isArray(su.components)) for (const c of su.components) if (c && c.id && c.component) comps[c.id] = c.component;
+    if (su && Array.isArray(su.components)) {
+      for (const c of su.components) if (c && c.id && c.component) comps[c.id] = c.component;
+    }
   }
   let rootIds = roots.filter(r => comps[r]);
-  if (rootIds.length === 0) {   // no valid root given -> infer un-referenced components
+  if (rootIds.length === 0) {
     const referenced = new Set();
-    for (const id in comps) { const spec = comps[id]; childIds(spec[Object.keys(spec)[0]] || {}).forEach(c => referenced.add(c)); }
+    for (const id in comps) {
+      const spec = comps[id];
+      childIds(spec[Object.keys(spec)[0]] || {}).forEach(c => referenced.add(c));
+    }
     rootIds = Object.keys(comps).filter(id => !referenced.has(id));
   }
   let drew = false;
-  for (const rid of rootIds) { const node = buildNode(rid, comps, new Set()); if (node) { container.appendChild(node); drew = true; } }
+  for (const rid of rootIds) {
+    const node = buildNode(rid, comps, new Set());
+    if (node) { container.appendChild(node); drew = true; }
+  }
   return drew;
 }
 
-// Fallback: pull every Text value out of the messages as plain text.
 function flattenText(messages) {
   const out = [];
   for (const m of messages) {
     const su = m.surfaceUpdate;
-    if (su && Array.isArray(su.components)) for (const c of su.components) if (c && c.component && c.component.Text) out.push(boundStr(c.component.Text.text));
+    if (su && Array.isArray(su.components)) {
+      for (const c of su.components) if (c && c.component && c.component.Text) out.push(boundStr(c.component.Text.text));
+    }
   }
   return out.join("\n").trim();
 }
 
-function renderReply(b, parts) {
-  b.textContent = "";   // clear the "…" placeholder
+function renderReply(bubble, parts) {
+  hideThinking();
   const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
   const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
 
   const textStr = texts.join("\n").trim();
-  if (textStr) b.appendChild(el("div", null, textStr));
+  if (textStr) {
+    const tDiv = el("div", null);
+    tDiv.innerHTML = textStr.replace(/\n/g, "<br>");
+    bubble.appendChild(tDiv);
+  }
 
   if (a2ui.length) {
-    b.classList.add("rich");
-    if (!renderSurface(a2ui, b)) b.appendChild(el("div", null, flattenText(a2ui) || "(no card content)"));
+    if (!renderSurface(a2ui, bubble)) {
+      const fallback = flattenText(a2ui);
+      if (fallback) bubble.appendChild(el("div", null, fallback));
+    }
   }
-  if (!b.childNodes.length) b.textContent = "(no response)";
+
+  if (!bubble.childNodes.length) bubble.textContent = "(no response)";
   log.scrollTop = log.scrollHeight;
 }
 
-// The proxy returns { parts: [{kind:"text",text} | {kind:"a2ui",data}] }.
-form.addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const text = input.value.trim();
-  if (!text) return;
-  bubble("user").textContent = text;
-  input.value = "";
-  const b = bubble("agent"); b.textContent = "…";
+// Submit query to FastAPI proxy /chat
+async function submitQuery(promptText) {
+  if (!promptText) return;
+  
+  const userBubble = appendBubble("user");
+  userBubble.textContent = promptText;
+  
+  chatInput.value = "";
+  showThinking();
+  
+  const agentBubble = appendBubble("agent");
+  
   try {
-    const res = await fetch("/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) });
-    // Read as text first, then parse. If the proxy ever returns a non-JSON error
-    // page (e.g. a plain "Internal Server Error"), show that body instead of a
-    // cryptic "Unexpected token" JSON error.
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: promptText })
+    });
+    
     const raw = await res.text();
     let data;
     try { data = JSON.parse(raw); }
     catch { throw new Error(`Server returned non-JSON (HTTP ${res.status}). ${raw.slice(0, 300)}`); }
-    renderReply(b, data.parts || []);
+    
+    renderReply(agentBubble, data.parts || []);
   } catch (e) {
-    b.textContent = "Error: " + e.message;
+    hideThinking();
+    agentBubble.textContent = "Error: " + e.message;
   }
+}
+
+chatForm.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  submitQuery(chatInput.value.trim());
+});
+
+dockForm.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const origin = originInput.value.trim();
+  const dest = destInput.value.trim();
+  const budget = budgetRange.value;
+  const prompt = `I am traveling from ${origin} to ${dest} for 7 days with a budget of ${formatCurrency(budget, "INR")}. Plan an eco-friendly trip, convert costs to MXN, check visa advisories, and generate a destination preview.`;
+  chatInput.value = prompt;
+  submitQuery(prompt);
 });
 </script>
+
 </body>
 </html>
