@@ -1,0 +1,5 @@
+#!include:.gitignore
+demo.gif
+*.gif
+*.webm
+data/
