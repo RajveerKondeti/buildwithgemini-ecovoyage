@@ -14,6 +14,9 @@
 # limitations under the License.
 
 import datetime
+import json
+import urllib.parse
+import urllib.request
 from zoneinfo import ZoneInfo
 from google.cloud import firestore
 import uuid
@@ -160,30 +163,111 @@ def execute_python_code(tool_context: ToolContext, code: str) -> str:
         return f"Error: {result.stderr}"
     return result.stdout or "Code executed successfully with no output."
 
-def get_live_fx_rates(base_currency: str = "USD") -> str:
-    """Fetches live foreign exchange (FX) conversion rates for USD, INR, MXN, EUR, and GBP.
+def get_live_exchange_rates(base: str = "USD") -> str:
+    """Fetches live foreign exchange (FX) conversion rates from the Frankfurter API for currencies such as INR, MXN, EUR, GBP, etc.
 
     Args:
-        base_currency: The base currency code to fetch conversion rates for (e.g., 'USD', 'INR', 'MXN').
+        base: The base currency code to fetch conversion rates for (default 'USD').
 
     Returns:
-        A string summary of live exchange rates and conversion factors.
+        A JSON string containing live exchange rates and target currency factors.
     """
-    base = base_currency.upper().strip()
-    rates = {
-        "USD": {"INR": 83.50, "MXN": 18.25, "EUR": 0.92, "GBP": 0.79, "USD": 1.0},
-        "INR": {"USD": 0.012, "MXN": 0.22, "EUR": 0.011, "GBP": 0.0095, "INR": 1.0},
-        "MXN": {"USD": 0.055, "INR": 4.58, "EUR": 0.050, "GBP": 0.043, "MXN": 1.0},
-    }
-    if base not in rates:
-        base = "USD"
-    rel_rates = rates[base]
-    return f"Live FX Exchange Rates (Base: {base}): " + ", ".join([f"1 {base} = {val} {curr}" for curr, val in rel_rates.items()])
+    try:
+        base_curr = base.strip().upper() if base else "USD"
+        url = f"https://api.frankfurter.dev/v1/latest?base={base_curr}"
+        req = urllib.request.Request(url, headers={"User-Agent": "GeminiEcoVoyage/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        rates = data.get("rates", {})
+        date_str = data.get("date", "")
+        summary = {
+            "status": "success",
+            "base": base_curr,
+            "date": date_str,
+            "rates": {
+                "INR": rates.get("INR"),
+                "MXN": rates.get("MXN"),
+                "EUR": rates.get("EUR"),
+                "GBP": rates.get("GBP"),
+                "CAD": rates.get("CAD"),
+                "AUD": rates.get("AUD"),
+                "JPY": rates.get("JPY"),
+                "USD": 1.0 if base_curr == "USD" else rates.get("USD"),
+            }
+        }
+        return json.dumps(summary, indent=2)
+    except Exception as e:
+        fallback_rates = {
+            "status": "fallback",
+            "base": base.upper(),
+            "rates": {"INR": 95.96, "MXN": 17.14, "EUR": 0.87, "GBP": 0.74, "USD": 1.0},
+            "note": f"Live FX API notice: {e}. Returned standard benchmark rates."
+        }
+        return json.dumps(fallback_rates, indent=2)
 
 
 # =====================================================================
 # Sub-Agent 2: Geo & Logistics Tools
 # =====================================================================
+
+def search_real_places(destination: str) -> str:
+    """Queries real-time geocoding coordinates and Open-Meteo weather forecasts for a travel destination, formatted for A2UI cards.
+
+    Args:
+        destination: The travel destination, city, or country name (e.g., 'Cancun', 'Costa Rica', 'Chennai').
+
+    Returns:
+        Clean JSON string with verified coordinates, country, admin region, elevation, and real-time weather forecast formatted for A2UI cards.
+    """
+    try:
+        dest_clean = destination.strip()
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(dest_clean)}&count=1"
+        req_geo = urllib.request.Request(geo_url, headers={"User-Agent": "GeminiEcoVoyage/1.0"})
+        with urllib.request.urlopen(req_geo, timeout=10) as resp_geo:
+            geo_data = json.loads(resp_geo.read().decode("utf-8"))
+        
+        results = geo_data.get("results")
+        if not results:
+            return json.dumps({"error": f"No geocoding results found for '{destination}'."})
+        
+        place = results[0]
+        lat = place.get("latitude")
+        lng = place.get("longitude")
+        name = place.get("name")
+        country = place.get("country", "")
+        admin1 = place.get("admin1", "")
+
+        wx_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&current_weather=true"
+        req_wx = urllib.request.Request(wx_url, headers={"User-Agent": "GeminiEcoVoyage/1.0"})
+        with urllib.request.urlopen(req_wx, timeout=10) as resp_wx:
+            wx_data = json.loads(resp_wx.read().decode("utf-8"))
+        
+        current_wx = wx_data.get("current_weather", {})
+        temp_c = current_wx.get("temperature")
+        wind_speed = current_wx.get("windspeed")
+        wx_code = current_wx.get("weathercode")
+
+        formatted_result = {
+            "place": {
+                "name": name,
+                "country": country,
+                "region": admin1,
+                "latitude": lat,
+                "longitude": lng,
+            },
+            "weather": {
+                "temperature_c": temp_c,
+                "temperature_f": round((temp_c * 9/5) + 32, 1) if temp_c is not None else None,
+                "windspeed_kmh": wind_speed,
+                "weather_code": wx_code,
+                "condition": "Clear Sky / Sunny" if wx_code == 0 else "Partly Cloudy"
+            },
+            "verified_location": f"{name}, {admin1}, {country} (Lat: {lat}, Lng: {lng})"
+        }
+        return json.dumps(formatted_result, indent=2)
+
+    except Exception as e:
+        return json.dumps({"error": f"Failed to fetch real place/weather data for '{destination}': {e}"})
 
 def geocode_location(address_or_city: str) -> str:
     """Geocodes an address, city, or landmark into latitude/longitude coordinates and verified location details.
@@ -306,7 +390,7 @@ def consult_docs(query: str) -> str:
 
 finance_agent = Agent(
     name="finance_agent",
-    description="Specialist agent for currency conversions, budget splits, live FX rates, and financial risk buffers.",
+    description="Specialist agent for currency conversions, budget splits, live FX exchange rates, and financial risk buffers.",
     model=Gemini(
         model="gemini-flash-latest",
         retry_options=types.HttpRetryOptions(attempts=3),
@@ -314,18 +398,17 @@ finance_agent = Agent(
     instruction=(
         "You are the Finance Specialist sub-agent for Gemini EcoVoyage.\n"
         "Your responsibilities include:\n"
-        "1. Calculating detailed daily itinerary budget splits across accommodation, food, activities, and transport.\n"
-        "2. Performing accurate live currency conversions (USD, INR, MXN, EUR, etc.) using `get_live_fx_rates`.\n"
-        "3. Applying a 10-15% financial risk buffer for unforeseen travel expenses.\n"
-        "4. Always presenting budget breakdowns in the user's local currency (defaulting to ₹ INR if user is in India or requested).\n"
-        "5. Using `execute_python_code` when complex mathematical computations or budget breakdowns are required."
+        "1. Fetching live exchange rates using `get_live_exchange_rates` (e.g. USD to INR, MXN, EUR, etc.).\n"
+        "2. Writing Python code via `execute_python_code` alongside `get_live_exchange_rates` data to compute line-item budgets in both local currency (e.g. ₹ INR) and destination currency (e.g. MXN $).\n"
+        "3. Calculating detailed daily itinerary budget splits across accommodation, food, activities, and transport.\n"
+        "4. Applying a 10-15% financial risk buffer for unforeseen travel expenses."
     ),
-    tools=[execute_python_code, get_live_fx_rates],
+    tools=[execute_python_code, get_live_exchange_rates],
 )
 
 geo_logistics_agent = Agent(
     name="geo_logistics_agent",
-    description="Specialist agent for geocoding locations, searching points of interest, calculating transit times, and finding eco-certified accommodations.",
+    description="Specialist agent for geocoding locations, real-time weather, searching points of interest, transit times, and finding eco-certified accommodations.",
     model=Gemini(
         model="gemini-flash-latest",
         retry_options=types.HttpRetryOptions(attempts=3),
@@ -333,12 +416,12 @@ geo_logistics_agent = Agent(
     instruction=(
         "You are the Geo & Logistics Specialist sub-agent for Gemini EcoVoyage.\n"
         "Your responsibilities include:\n"
-        "1. Geocoding addresses, cities, and landmarks to verify exact coordinates and location details.\n"
-        "2. Searching Google Maps Places for eco-certified accommodations, green hotels, and sustainable attractions.\n"
-        "3. Calculating travel legs, flight routes, and transit times (e.g., Chennai to Mexico travel legs, airport shuttles).\n"
-        "4. Checking local weather conditions and time zones for destinations."
+        "1. Querying real-time geocoding coordinates and weather forecasts via `search_real_places` formatted for A2UI cards.\n"
+        "2. Geocoding addresses, cities, and landmarks to verify exact coordinates (`geocode_location`).\n"
+        "3. Searching Google Maps Places for eco-certified accommodations, green hotels, and sustainable attractions (`search_places_and_accommodations`).\n"
+        "4. Calculating travel legs, flight routes, and transit times (`get_transit_directions`)."
     ),
-    tools=[geocode_location, search_places_and_accommodations, get_transit_directions, get_weather, get_current_time],
+    tools=[search_real_places, geocode_location, search_places_and_accommodations, get_transit_directions, get_weather, get_current_time],
 )
 
 eco_grounding_agent = Agent(
@@ -373,8 +456,8 @@ instruction = schema_manager.generate_system_prompt(
     role_description=(
         "You are Gemini EcoVoyage, the master orchestrator of a Hierarchical Multi-Agent Travel Concierge System. "
         "You coordinate three specialist sub-agents:\n"
-        "- `finance_agent`: Handles currency conversions, budget splits, live FX rates, and financial risk buffers (in local currency like ₹ INR).\n"
-        "- `geo_logistics_agent`: Handles location geocoding, transit legs (e.g. Chennai to Mexico), and eco-certified accommodations.\n"
+        "- `finance_agent`: Handles currency conversions, live FX exchange rates (`get_live_exchange_rates`), Python code sandbox budget calculations (`execute_python_code`) in local (₹ INR) and destination (MXN $) currencies, and risk buffers.\n"
+        "- `geo_logistics_agent`: Handles location geocoding, real-time weather (`search_real_places`), transit legs (e.g. Chennai to Mexico), and eco-certified accommodations.\n"
         "- `eco_grounding_agent`: Handles sustainability scores, visa/travel advisories, and local environmental rules via grounded retrieval.\n"
         "You maintain session state via Firestore & Memory Bank, generate destination preview images, and save planned trip itineraries."
     ),
