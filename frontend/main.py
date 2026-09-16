@@ -112,6 +112,8 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     return _card
 
 
+import json
+
 def _extract_parts(parts: list) -> list[dict]:
     """Turn A2A response parts into structured parts for the chat UI.
 
@@ -123,13 +125,41 @@ def _extract_parts(parts: list) -> list[dict]:
     out: list[dict] = []
     for p in parts:
         root = getattr(p, "root", p)
-        if isinstance(root, TextPart) and getattr(root, "text", None):
-            out.append({"kind": "text", "text": root.text})
-        elif getattr(root, "data", None) is not None:
-            meta = getattr(root, "metadata", None) or {}
-            mime = meta.get("mimeType") if isinstance(meta, dict) else None
+        
+        # Check if the part is a DataPart containing text/plain with <a2a_datapart_json>
+        data_content = getattr(root, "data", None)
+        mime = getattr(root, "mime_type", None) or (getattr(root, "metadata", None) or {}).get("mimeType")
+        
+        if data_content is not None:
             if mime == _A2UI_MIME:
-                out.append({"kind": "a2ui", "data": root.data})
+                out.append({"kind": "a2ui", "data": data_content})
+                continue
+            elif mime == "text/plain":
+                try:
+                    text = data_content.decode("utf-8") if isinstance(data_content, bytes) else str(data_content)
+                    if "<a2a_datapart_json>" in text:
+                        inner_json = text.split("<a2a_datapart_json>")[1].split("</a2a_datapart_json>")[0]
+                        parsed = json.loads(inner_json)
+                        if parsed.get("metadata", {}).get("mimeType") == _A2UI_MIME:
+                            out.append({"kind": "a2ui", "data": parsed.get("data")})
+                            continue
+                except Exception:
+                    pass
+
+        # Handle TextPart (which might also contain wrapped json or just be normal text)
+        if isinstance(root, TextPart) and getattr(root, "text", None):
+            text = root.text
+            try:
+                if "<a2a_datapart_json>" in text:
+                    inner_json = text.split("<a2a_datapart_json>")[1].split("</a2a_datapart_json>")[0]
+                    parsed = json.loads(inner_json)
+                    if parsed.get("metadata", {}).get("mimeType") == _A2UI_MIME:
+                        out.append({"kind": "a2ui", "data": parsed.get("data")})
+                        continue
+            except Exception:
+                pass
+            out.append({"kind": "text", "text": text})
+            
         elif isinstance(root, FilePart):
             uri = getattr(getattr(root, "file", None), "uri", None)
             if uri:

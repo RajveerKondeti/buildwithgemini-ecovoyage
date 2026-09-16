@@ -990,21 +990,77 @@ function flattenText(messages) {
   return out.join("\n").trim();
 }
 
+function parseTextForA2UI(textStr) {
+  let cleanText = textStr || "";
+  const extractedSurfaces = [];
+
+  // 1. Check for <a2ui-json> tags
+  if (cleanText.includes("<a2ui-json>")) {
+    const segments = cleanText.split("<a2ui-json>");
+    let textBuf = segments[0] || "";
+    for (let i = 1; i < segments.length; i++) {
+      const sub = segments[i].split("</a2ui-json>");
+      const jsonCandidate = sub[0].trim();
+      if (sub[1]) textBuf += sub[1];
+      try {
+        const obj = JSON.parse(jsonCandidate);
+        if (obj && (obj.components || obj.surfaceId)) {
+          extractedSurfaces.push({ surfaceUpdate: { components: obj.components || [] } });
+        }
+      } catch (e) {}
+    }
+    cleanText = textBuf.trim();
+  }
+
+  // 2. Check if cleanText itself or a substring is a JSON object with "components" or "surfaceId"
+  if (cleanText.includes('"components"') || cleanText.includes('"surfaceId"')) {
+    try {
+      const obj = JSON.parse(cleanText);
+      if (obj && (obj.components || obj.surfaceId)) {
+        extractedSurfaces.push({ surfaceUpdate: { components: obj.components || [] } });
+        cleanText = "";
+      }
+    } catch (e) {
+      const match = cleanText.match(/\{[\s\S]*"components"[\s\S]*\}/);
+      if (match) {
+        try {
+          const obj = JSON.parse(match[0]);
+          if (obj && (obj.components || obj.surfaceId)) {
+            extractedSurfaces.push({ surfaceUpdate: { components: obj.components || [] } });
+            cleanText = cleanText.replace(match[0], "").trim();
+          }
+        } catch (err) {}
+      }
+    }
+  }
+
+  return { cleanText, extractedSurfaces };
+}
+
 function renderReply(bubble, parts) {
   hideThinking();
-  const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
-  const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
+  const rawTexts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
+  const a2uiParts = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
 
-  const textStr = texts.join("\n").trim();
+  let allSurfaces = [...a2uiParts];
+  let finalTexts = [];
+
+  for (const txt of rawTexts) {
+    const { cleanText, extractedSurfaces } = parseTextForA2UI(txt);
+    if (cleanText) finalTexts.push(cleanText);
+    allSurfaces.push(...extractedSurfaces);
+  }
+
+  const textStr = finalTexts.join("\n").trim();
   if (textStr) {
     const tDiv = el("div", null);
     tDiv.innerHTML = textStr.replace(/\n/g, "<br>");
     bubble.appendChild(tDiv);
   }
 
-  if (a2ui.length) {
-    if (!renderSurface(a2ui, bubble)) {
-      const fallback = flattenText(a2ui);
+  if (allSurfaces.length) {
+    if (!renderSurface(allSurfaces, bubble)) {
+      const fallback = flattenText(allSurfaces);
       if (fallback) bubble.appendChild(el("div", null, fallback));
     }
   }
