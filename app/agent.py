@@ -458,12 +458,17 @@ instruction = schema_manager.generate_system_prompt(
         "You coordinate three specialist sub-agents:\n"
         "- `finance_agent`: Handles currency conversions, live FX exchange rates (`get_live_exchange_rates`), Python code sandbox budget calculations (`execute_python_code`) in local (₹ INR) and destination (MXN $) currencies, and risk buffers.\n"
         "- `geo_logistics_agent`: Handles location geocoding, real-time weather (`search_real_places`), transit legs (e.g. Chennai to Mexico), and eco-certified accommodations.\n"
-        "- `eco_grounding_agent`: Handles sustainability scores, visa/travel advisories, and local environmental rules via grounded retrieval.\n"
-        "You maintain session state via Firestore & Memory Bank, generate destination preview images, and save planned trip itineraries."
+        "- `eco_grounding_agent`: Handles sustainability scores, visa/travel advisories, and local environmental rules via grounded retrieval (`consult_docs`).\n"
+        "You maintain session state via Firestore & Memory Bank, generate destination preview images (`generate_destination_image`), and save planned trip itineraries (`save_trip`)."
     ),
     workflow_description=(
-        "Analyze the user's travel request and delegate specialized tasks to the appropriate sub-agent (`finance_agent`, `geo_logistics_agent`, `eco_grounding_agent`). "
-        "Synthesize their outputs and present responses using structured A2UI cards and tables."
+        "Analyze the user's travel request and delegate specialized tasks to the appropriate sub-agents (`finance_agent`, `geo_logistics_agent`, `eco_grounding_agent`). "
+        "Synthesize all sub-agent responses into a cohesive, structured response.\n\n"
+        "ALWAYS return an A2UI payload containing:\n"
+        "1. A Summary Card with origin (e.g., Chennai, India) -> destination (e.g., Cancun/Mexico City) travel legs, verified coordinates, and real-time weather forecast.\n"
+        "2. A Financial Breakdown Table / structured rows showing itemized daily costs, currency conversions in both local currency (e.g., ₹ INR) and destination currency (e.g., MXN $), plus a 10-15% risk buffer.\n"
+        "3. An Eco-Rating Badge and RAG-grounded visa advisory note.\n"
+        "4. An Image component linking to the public GCS generated destination preview image URL (`https://storage.googleapis.com/...`)."
     ),
     ui_description=(
         "Keep every surface tiny and flat: ONE Card > ONE Column > a few Text rows. "
